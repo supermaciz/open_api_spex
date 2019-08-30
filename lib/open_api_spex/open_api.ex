@@ -6,7 +6,7 @@ defmodule   OpenApiSpex.OpenApi do
   alias OpenApiSpex.{
     Extendable, Info, Server, Paths, Components,
     SecurityRequirement, Tag, ExternalDocumentation,
-    OpenApi
+    OpenApi, Response
   }
   @enforce_keys [:info, :paths]
   defstruct [
@@ -76,6 +76,11 @@ defmodule   OpenApiSpex.OpenApi do
         end
 
         defp to_json(%Regex{source: source}), do: source
+        defp to_json(value = %Response{}) do
+          value
+          |> Extendable.to_map()
+          |> to_json_response()
+        end
         defp to_json(value = %{__struct__: _}) do
           value
           |> Extendable.to_map()
@@ -95,6 +100,27 @@ defmodule   OpenApiSpex.OpenApi do
         defp to_json(false), do: false
         defp to_json(value) when is_atom(value), do: to_string(value)
         defp to_json(value), do: value
+
+        defp to_json_response(value = %{__struct__: _}) do
+          value
+          |> Extendable.to_map()
+          |> to_json_response()
+        end
+        defp to_json_response(value) when is_map(value) do
+          value
+          |> Stream.map(fn {k, v} -> {to_string(k), to_json_response(v)} end)
+          |> Enum.into(%{})
+        end
+
+        defp to_json_response(value) when is_list(value) do
+          Enum.map(value, &to_json_response/1)
+        end
+
+        defp to_json_response(nil), do: nil
+        defp to_json_response(true), do: true
+        defp to_json_response(false), do: false
+        defp to_json_response(value) when is_atom(value), do: to_string(value)
+        defp to_json_response(value), do: value
       end
     end
   end
