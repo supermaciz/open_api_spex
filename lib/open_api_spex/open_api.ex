@@ -1,25 +1,31 @@
-defmodule   OpenApiSpex.OpenApi do
+defmodule OpenApiSpex.OpenApi do
   @moduledoc """
   Defines the `OpenApiSpex.OpenApi.t` type and the behaviour for application modules that
   construct an `OpenApiSpex.OpenApi.t` at runtime.
   """
   alias OpenApiSpex.{
-    Extendable, Info, Server, Paths, Components,
-    SecurityRequirement, Tag, ExternalDocumentation,
-    OpenApi, Response
+    Extendable,
+    Info,
+    Server,
+    Paths,
+    Components,
+    SecurityRequirement,
+    Tag,
+    ExternalDocumentation,
+    OpenApi,
+    Response
   }
+
   @enforce_keys [:info, :paths]
-  defstruct [
-    openapi: "3.0.0",
-    info: nil,
-    servers: [],
-    paths: nil,
-    components: nil,
-    security: [],
-    tags: [],
-    externalDocs: nil,
-    extensions: nil
-  ]
+  defstruct openapi: "3.0.0",
+            info: nil,
+            servers: [],
+            paths: nil,
+            components: nil,
+            security: [],
+            tags: [],
+            externalDocs: nil,
+            extensions: nil
 
   @typedoc """
   [OpenAPI Object](https://swagger.io/specification/#oasObject)
@@ -27,16 +33,16 @@ defmodule   OpenApiSpex.OpenApi do
   This is the root document object of the OpenAPI document.
   """
   @type t :: %OpenApi{
-    openapi: String.t,
-    info: Info.t,
-    servers: [Server.t] | nil,
-    paths: Paths.t,
-    components: Components.t | nil,
-    security: [SecurityRequirement.t] | nil,
-    tags: [Tag.t] | nil,
-    externalDocs: ExternalDocumentation.t | nil,
-    extensions: %{String.t() => any()} | nil,
-  }
+          openapi: String.t(),
+          info: Info.t(),
+          servers: [Server.t()] | nil,
+          paths: Paths.t(),
+          components: Components.t() | nil,
+          security: [SecurityRequirement.t()] | nil,
+          tags: [Tag.t()] | nil,
+          externalDocs: ExternalDocumentation.t() | nil,
+          extensions: %{String.t() => any()} | nil
+        }
 
   @doc """
   A spec/0 callback function is required for use with the `OpenApiSpex.Plug.PutApiSpec` plug.
@@ -76,47 +82,77 @@ defmodule   OpenApiSpex.OpenApi do
         end
 
         defp to_json(%Regex{source: source}), do: source
+
         defp to_json(value = %Response{}) do
           value
           |> Extendable.to_map()
-          |> to_json_response()
+          |> to_json_response([])
         end
+
         defp to_json(value = %{__struct__: _}) do
           value
           |> Extendable.to_map()
           |> to_json()
         end
+
         defp to_json(value) when is_map(value) do
           value
-          |> Stream.map(fn {k,v} -> {to_string(k), to_json(v)} end)
-          |> Stream.filter(fn {_, nil} -> false; _ -> true end)
+          |> Stream.map(fn {k, v} -> {to_string(k), to_json(v)} end)
+          |> Stream.filter(fn
+            {_, nil} -> false
+            _ -> true
+          end)
           |> Enum.into(%{})
         end
+
         defp to_json(value) when is_list(value) do
           Enum.map(value, &to_json/1)
         end
+
         defp to_json(nil), do: nil
         defp to_json(true), do: true
         defp to_json(false), do: false
         defp to_json(value) when is_atom(value), do: to_string(value)
         defp to_json(value), do: value
 
-        defp to_json_response(value = %{__struct__: _}) do
+        defp to_json_response(value = %{__struct__: _}, path) do
           value
           |> Extendable.to_map()
-          |> to_json_response()
+          |> to_json_response(path)
         end
-        defp to_json_response(value) when is_map(value) do
+
+        defp to_json_response(value, [:example, "application/json", :content] = path)
+             when is_map(value) do
           value
           |> Stream.map(fn
-            {k, v} when is_map(v) or is_list(v) -> {to_string(k), to_json_response(v)}
+            {k, v} when is_map(v) or is_list(v) -> {to_string(k), to_json_response(v, path)}
             {k, v} -> {to_string(k), to_json(v)}
           end)
           |> Enum.into(%{})
         end
-        defp to_json_response(value) when is_list(value) do
+
+        defp to_json_response(value, path) when is_map(value) do
+          value
+          |> Stream.map(fn
+            {k, v} when (is_map(v) or is_list(v)) and length(path) < 3 ->
+              {to_string(k), to_json_response(v, [k | path])}
+
+            {k, v} when is_map(v) or is_list(v) ->
+              {to_string(k), to_json_response(v, path)}
+
+            {k, v} ->
+              {to_string(k), to_json(v)}
+          end)
+          |> Stream.filter(fn
+            {_, nil} -> false
+            _ -> true
+          end)
+          |> Enum.into(%{})
+        end
+
+        defp to_json_response(value, path) when is_list(value) do
           Enum.map(value, fn
-            x when is_map(x) or is_list(x) -> to_json_response(x)
+            x when is_map(x) or is_list(x) -> to_json_response(x, path)
             x -> to_json(x)
           end)
         end
