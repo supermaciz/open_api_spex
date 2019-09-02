@@ -108,19 +108,18 @@ defmodule   OpenApiSpex.OpenApi do
         end
         defp to_json_response(value) when is_map(value) do
           value
-          |> Stream.map(fn {k, v} -> {to_string(k), to_json_response(v)} end)
+          |> Stream.map(fn
+            {k, v} when is_map(v) or is_list(v) -> {to_string(k), to_json_response(v)}
+            {k, v} -> {to_string(k), to_json(v)}
+          end)
           |> Enum.into(%{})
         end
-
         defp to_json_response(value) when is_list(value) do
-          Enum.map(value, &to_json_response/1)
+          Enum.map(value, fn
+            x when is_map(x) or is_list(x) -> to_json_response(x)
+            x -> to_json(x)
+          end)
         end
-
-        defp to_json_response(nil), do: nil
-        defp to_json_response(true), do: true
-        defp to_json_response(false), do: false
-        defp to_json_response(value) when is_atom(value), do: to_string(value)
-        defp to_json_response(value), do: value
       end
     end
   end
